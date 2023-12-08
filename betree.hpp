@@ -63,18 +63,22 @@
 #define SIGMOID (0x2F)
 #define TANH (0x3F)
 #define ORIGINAL (0x4F)
+#define DEFAULT_EPSILON (0.5)
+#define DEFAULT_WINDOW_SIZE (1000)
+#define DEFAULT_MIN_EPSILON (0.3)
+#define DEFAULT_MAX_EPSILON (1.0)
 
 /**
  * debug
  */
-int flush_num = 0;
-int split_num = 0;
-int query_num = 0;
-int epsilon_curve = ORIGINAL;
-bool is_test = false;
-float min_epsilon = 0.5;
-float max_epsilon = 1.0;
-int window_size = 100000;
+// int flush_num = 0;
+// int split_num = 0;
+// int query_num = 0;
+// int bet.epsilon_curve = ORIGINAL;
+// bool bet.is_test = false;
+// float bet.min_epsilon = 0.5;
+// float bet.max_epsilon = 1.0;
+
 
 ////////////////// Upserts
 
@@ -280,44 +284,44 @@ private:
       return pivots.empty();
     }
 
-    void update_epsilon(){
+    void update_epsilon(betree& bet){
       if (this->query_count + this->upsert_count == 0) 
           return;
       float x = float(this->query_count) / (this->query_count + this->upsert_count);
       // if (this->history.size() == 0) 
       //   return;
       // float x = float(this->history_sum) / (this->history.size());
-      if (epsilon_curve == LINEAR){
+      if (bet.epsilon_curve == LINEAR){
         // tanh function
         float xmin, xmax;
         xmin = 0;
         xmax = 1;
         float y = x;
-        // normalize and map to range 0.5 - 0.9
+        // normalize and map to range min_eps - max_eps
         y = (y - xmin) / (xmax - xmin);
-        y = min_epsilon + y * (max_epsilon-min_epsilon);
+        y = bet.min_epsilon + y * (bet.max_epsilon-bet.min_epsilon);
         this->epsilon = y;
       }
-      else if (epsilon_curve == TANH){
+      else if (bet.epsilon_curve == TANH){
           // tanh function
           float xmin, xmax;
           xmin = tanh(-1);
           xmax = tanh(1);
           float y = tanh(x);
-          // normalize and map to range 0.5 - 0.9
+          // normalize and map to range min_eps - max_eps
           y = (y - xmin) / (xmax - xmin);
-          y = min_epsilon + y * (max_epsilon-min_epsilon);
+          y = bet.min_epsilon + y * (bet.max_epsilon-bet.min_epsilon);
           this->epsilon = y;
       }
-      else if (epsilon_curve == SIGMOID){
+      else if (bet.epsilon_curve == SIGMOID){
           // sigmoid function
           float xmin, xmax;
           xmin = 1 / (1 + exp(1));
           xmax = 1 / (1 + exp(-1));
           float y = 1 / (1 + exp(-x));
-          // normalize and map to range 0.5 - 0.9
+          // normalize and map to range min_eps - max_eps
           y = (y - xmin) / (xmax - xmin);
-          y = min_epsilon + y * (max_epsilon-min_epsilon);
+          y = bet.min_epsilon + y * (bet.max_epsilon-bet.min_epsilon);
           this->epsilon = y;
       }
     }
@@ -455,17 +459,12 @@ private:
     //           destined for each child in pivots);
     pivot_map split(betree &bet)
     {
-      if(is_test)
-        split_num++;
-      // std::cout << "pivots.size(): " << pivots.size() << std::endl;
-      // std::cout << "elements.size(): " << elements.size() << std::endl;
-      // std::cout << " bet.max_node_size " <<  bet.max_node_size << std::endl;
-      // std::cout << " bet.min_flush_size " <<  bet.min_flush_size << std::endl;
+      // if(bet.is_test)
+      //   split_num++;
 
       // XY
       assert(pivots.size() + elements.size() >= bet.max_node_size || pivots.size() >= pow(bet.max_node_size, this->epsilon)
        || elements.size() >= bet.max_node_size - pow(bet.max_node_size, this->epsilon));
-      // assert(pivots.size() + elements.size() >= bet.max_node_size || pivots.size() >= bet.max_node_size - bet.min_flush_size);
       // This size split does a good job of causing the resulting
       // nodes to have size between 0.4 * MAX_NODE_SIZE and 0.6 * MAX_NODE_SIZE.
       int num_new_leaves =
@@ -474,7 +473,6 @@ private:
       {
         num_new_leaves = 2;
       }
-      // std::cout << " num_new_leaves " <<  num_new_leaves << std::endl;
       int things_per_new_leaf =
           (pivots.size() + elements.size() + num_new_leaves - 1) / num_new_leaves;
 
@@ -581,36 +579,20 @@ private:
     // Otherwise return an empty map.
     pivot_map flush(betree &bet, message_map &elts)
     {
-      if (is_test){
+      if (bet.is_test){
         this->upsert_count++;
-        flush_num++;
+        // flush_num++;
+        // Local strategy to record history visits
         // this->history.push(0);
-        // if(this->history.size()>=window_size){
+        // if(this->history.size() >= DEFAULT_WINDOW_SIZE){
         //   int temp = this->history.front();
         //   this->history.pop();
         //   this->history_sum -= temp;
         // }
-        // std::cout << "upsert_count" << this->upsert_count << std::endl; 
       }
 
-      update_epsilon();
+      update_epsilon(bet);
 
-      // dynamic epsilon
-      // if(this->upsert_count != 0 && this->query_count != 0){ 
-      //   this->epsilon = static_cast<double>(this->query_count)/(this->upsert_count+this->query_count);
-      //   if(this->epsilon>0.8)
-      //     this->epsilon=0.8;
-      //   if(this->epsilon<0.2)
-      //     this->epsilon=0.2;
-      // }
-      // else if(this->upsert_count == 0 && this->query_count != 0){
-      //   this->epsilon=0.8;
-      // }
-      // else if(this->upsert_count != 0 && this->query_count == 0){
-      //   this->epsilon=0.2;
-      // }
-      
-      // std::cout << "epsilon " << this->epsilon << std::endl; 
   
       debug(std::cout << "Flushing " << this << std::endl);
       pivot_map result;
@@ -644,40 +626,6 @@ private:
         pivots.erase(oldmin);
       }
 
-      // If everything is going to a single dirty child, go ahead
-      // and put it there.
-      // auto first_pivot_idx = get_pivot(elts.begin()->first.key);
-      // auto last_pivot_idx = get_pivot((--elts.end())->first.key);
-      // if (first_pivot_idx == last_pivot_idx &&
-      //     first_pivot_idx->second.child.is_dirty())
-      // {
-      //   // There shouldn't be anything in our buffer for this child,
-      //   // but lets assert that just to be safe.
-      //   {
-      //     auto next_pivot_idx = next(first_pivot_idx);
-      //     auto elt_start = get_element_begin(first_pivot_idx);
-      //     auto elt_end = get_element_begin(next_pivot_idx);
-      //     assert(elt_start == elt_end);
-      //   }
-      //   pivot_map new_children = first_pivot_idx->second.child->flush(bet, elts); 
-      //   if (!new_children.empty())
-      //   {
-      //     pivots.erase(first_pivot_idx);
-      //     pivots.insert(new_children.begin(), new_children.end()); 
-      //     // XY
-      //     if (pivots.size() >= pow(bet.max_node_size, this->epsilon))
-      //       result = split(bet);
-      //     // if (pivots.size() >= bet.max_node_size - bet.min_flush_size)
-      //     //   result = split(bet);
-      //   }
-      //   else
-      //   { // XY: check?
-      //     first_pivot_idx->second.child_size =
-      //         first_pivot_idx->second.child->pivots.size() +
-      //         first_pivot_idx->second.child->elements.size();
-      //   }
-      // }
-      // else
       {
         for (auto it = elts.begin(); it != elts.end(); ++it)
           apply(it->first, it->second, bet.default_value);  // may no need to flush
@@ -704,15 +652,6 @@ private:
             }
           }
 
-          // if (max_size <= bet.min_flush_size &&
-          //   (max_size <= bet.min_flush_size/2 ||
-          //   child_pivot->second.child.not_in_memory()))
-
-          // if (!(max_size > bet.min_flush_size ||
-          //   (max_size > bet.min_flush_size/2 &&
-          //   child_pivot->second.child.is_in_memory())))
-          // if (pivots.size() >= pow(bet.max_node_size, this->epsilon))
-          //   break; // We need to split because we have too many pivots
           auto elt_child_it = get_element_begin(child_pivot);
           auto elt_next_it = get_element_begin(next_pivot);
           message_map child_elts(elt_child_it, elt_next_it);
@@ -732,19 +671,8 @@ private:
         }
 
         // XY
-        // if (elements.size() >= bet.max_node_size - pow(bet.max_node_size, this->epsilon))
-        //   return flush(bet, );
-        // else 
         if (pivots_exceed(bet))
           return split(bet);
-
-        // We have too many pivots to efficiently flush stuff down, so split
-        // if (elements.size() + pivots.size() > bet.max_node_size)
-        // {
-        //   result = split(bet);
-        // }
-        // else if (pivots.size() >= bet.max_node_size - bet.min_flush_size)
-        //   result = split(bet);
       }
 
       // merge_small_children(bet);
@@ -756,17 +684,17 @@ private:
     Value query(const betree &bet, const Key k) const
     {
       // XINyuan: query count + 1
-      if (is_test){
+      if (bet.is_test){
         this->query_count++;
-        query_num++;
+        // query_num++;
+        // Local strategy to record history visits
         // this->history.push(1);
         // this->history_sum++;
-        // if(this->history.size()>=window_size){
+        // if(this->history.size() >= DEFAULT_WINDOW_SIZE){
         //   int temp = this->history.front();
         //   this->history.pop();
         //   this->history_sum -= temp;
         // }
-        // std::cout << "query_count" << this->query_count << std::endl;
         }
 
       debug(std::cout << "Querying " << this << std::endl);
@@ -910,16 +838,31 @@ private:
   uint64_t min_node_size;
   node_pointer root;
   uint64_t next_timestamp = 1; // Nothing has a timestamp of 0
-  Value default_value;
+  Value default_value; 
+  
+
 
 public:
+  int epsilon_curve = ORIGINAL;
+  bool is_test = false;
+  float min_epsilon = DEFAULT_MIN_EPSILON;
+  float max_epsilon = DEFAULT_MAX_EPSILON;
+  
   betree(swap_space *sspace,
          uint64_t maxnodesize = DEFAULT_MAX_NODE_SIZE,
          uint64_t minnodesize = DEFAULT_MAX_NODE_SIZE / 4,
-         uint64_t minflushsize = DEFAULT_MIN_FLUSH_SIZE) : ss(sspace),
+         uint64_t minflushsize = DEFAULT_MIN_FLUSH_SIZE, 
+         int epsiloncurve = ORIGINAL,
+         float minepsilon = DEFAULT_MIN_EPSILON,
+         float maxepsilon = DEFAULT_MAX_EPSILON)
+         : ss(sspace),
                                                            min_flush_size(minflushsize),
                                                            max_node_size(maxnodesize),
-                                                           min_node_size(minnodesize) // never used
+                                                           min_node_size(minnodesize), // never used
+                                                           epsilon_curve(epsiloncurve),
+                                                           min_epsilon(minepsilon), 
+                                                           max_epsilon(maxepsilon) 
+                    
   {
     root = ss->allocate(new node);
   }

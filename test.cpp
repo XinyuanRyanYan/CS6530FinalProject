@@ -126,6 +126,7 @@ int initialization(betree<uint64_t, std::string> &b,
 	//  FILE *script_output
    )
 {
+  b.is_test = false;
   for (unsigned int i = 0; i < 50000; i++) {
     int op;
     uint64_t t;
@@ -222,7 +223,7 @@ int test(betree<uint64_t, std::string> &b,
    )
 { 
   // XY: change the is_test to true
-  is_test = true;
+  b.is_test = true;
   // std::map<uint64_t, std::string> reference;
   uint64_t overall_timer = 0;
   uint64_t query_timer = 0;
@@ -231,13 +232,13 @@ int test(betree<uint64_t, std::string> &b,
   uint64_t query_count = 0; 
 
   // every 10000
-  uint64_t overall_timer_segs[11];
+  // uint64_t overall_timer_segs[11];
   uint64_t query_timer_segs[11];
   uint64_t upsert_timer_segs[11];
   for(unsigned int i = 0; i < 11; i++){
     upsert_timer_segs[i]=0;
     query_timer_segs[i]=0;
-    overall_timer_segs[i]=0;
+    // overall_timer_segs[i]=0;
   }
 
 
@@ -357,9 +358,9 @@ int test(betree<uint64_t, std::string> &b,
   
   overall_timer = query_timer+upsert_timer;
 
-  for(unsigned int i = 0; i < 11; i++){
-    overall_timer_segs[i]=upsert_timer_segs[i]+ query_timer_segs[i];
-  }
+  // for(unsigned int i = 0; i < 11; i++){
+  //   overall_timer_segs[i]=upsert_timer_segs[i]+ query_timer_segs[i];
+  // }
 
   std::cout << "overall_time: " << overall_timer << std::endl;
   std::cout << "query_timer: " << query_timer << std::endl;
@@ -367,9 +368,9 @@ int test(betree<uint64_t, std::string> &b,
   std::cout << "upsert_count: " << upsert_count << std::endl;
   std::cout << "query_count: " << query_count << std::endl;
 
-  std::cout << "split_num: " << split_num << std::endl;
-  std::cout << "flush_num: " << flush_num << std::endl;
-  std::cout << "query_num: " << query_num << std::endl;
+  // std::cout << "split_num: " << split_num << std::endl;
+  // std::cout << "flush_num: " << flush_num << std::endl;
+  // std::cout << "query_num: " << query_num << std::endl;
   std::cout << "average_overall_time: " << 1.0*overall_timer/100000 << std::endl;
 
   if(query_count!=0)
@@ -449,6 +450,12 @@ int main(int argc, char **argv)
  
   int opt;
   char *term;
+
+  float min_epsilon = DEFAULT_MIN_EPSILON;
+  float max_epsilon = DEFAULT_MAX_EPSILON;
+  int epsilon_curve = ORIGINAL;
+
+
     
   //////////////////////
   // Argument parsing //
@@ -601,14 +608,14 @@ int main(int argc, char **argv)
   one_file_per_object_backing_store ofpobs(backing_store_dir);
   swap_space sspace(&ofpobs, cache_size);
   
-  betree<uint64_t, std::string> b(&sspace, max_node_size, max_node_size/4, min_flush_size);
+  betree<uint64_t, std::string> b(&sspace, max_node_size, max_node_size/4, min_flush_size, epsilon_curve, min_epsilon, max_epsilon);
 
   if (strcmp(mode, "test") == 0){
     std::map<uint64_t, std::string> reference;
     initialization(b, init_file, reference);
-    std::cout << "initialization done" << is_test << std::endl;
+    std::cout << "initialization done" << b.is_test << std::endl;
     test(b, nops, number_of_distinct_keys, script_input, script_output, reference);
-    std::cout << "test done" << is_test << std::endl;
+    std::cout << "test done" << b.is_test << std::endl;
   }
   else if (strcmp(mode, "benchmark-upserts") == 0)
     benchmark_upserts(b, nops, number_of_distinct_keys, random_seed);
