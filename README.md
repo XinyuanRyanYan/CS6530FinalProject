@@ -1,18 +1,13 @@
-# TESTING YOUR LOGGING FUNCTIONALITY
+# Adaptive Bε-tree
 
-Adaptive Bε-tree
-
-
-## BUILDING THE TEST PROGRAM
 
 
 You can compile the tests using the provided Makefile: `make clean && make test_logging_restore`.
 
-Your Makefile may differ slightly as you will need to ensure your logging is compiled. Please be sure to modify the Makefile properly so that the logging functionality you create is also compiled and found.
 
 ## RUNNING THE TEST PROGRAM
 
-Included with the project is a text file that will run 10,000 inserts and queries followed by 400 queries (and their correct results) for the final tree. The file is named `test_inputs.txt`. To use this file to test your tree, use a command like so:
+Run the Be tree with fiexed ε value (baseline)
 
 ```bash
 ./test_logging_restore -m test -d your_temp_dir -i test_inputs.txt -t 10400 -c 50 -p 200
