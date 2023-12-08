@@ -1,10 +1,7 @@
 # TESTING YOUR LOGGING FUNCTIONALITY
 
-For convenience, we have included some files to help as you work on your project.
+Adaptive Bε-tree
 
-The test C++ source file is named `test_logging_restore.cpp`. It is a stripped down version of `test.cpp` that we expect you to modify to include your logging functionality (with proper initialization).
-
-There are two parameters that your logging class will need to accept (depending on your logging implementation as discussed in your design document), `persistence_granularity` and `checkpoint_granularity`. `test_logging_restore.cpp` adds both of those as required parameters when running the binary as `-p` and `-c`. Please be sure they exist when running the program.
 
 ## BUILDING THE TEST PROGRAM
 
